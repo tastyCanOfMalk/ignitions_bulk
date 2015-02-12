@@ -23,14 +23,21 @@ if (require("reshape") == FALSE) install.packages("reshape")
 # MULTI SAMPLE GRAPHS
 #   plotOverlays()  # max of 10 graphs
 #   plotTables()  # max of 10 tables
+#   plotOverlays()  # compare all data between all samples
+#   plotTables()  # compare results from all samples
+#   plotCompiledResults()  # means/stdevs of all samples
+#   plotBoxplots()  # easy comparison of variables between all samples
+
+#   exportPngSummary()  # exports all multisample graphs
 
 # ======================
 # OPTIONS
 # ==========================
 
 setwd("C://Users//yue.GLOBAL//Documents//R//ignition")
-prefix.range <- c('A', 'c', 'D', 'E', 'F')
-prefix.list  <- paste0("2015-01-27,8", 
+prefix.range <- c('C', 'D', 'E', 'F', 'G', 'H')
+pre.prefix <- "2014-10-28,157"
+prefix.list  <- paste0(pre.prefix, 
                        prefix.range[1:length(prefix.range)])
 
 skip.lines <- 13  # default 11, 13 otherwise
@@ -41,13 +48,16 @@ skip.lines <- 13  # default 11, 13 otherwise
 read.rows <- 800  # default 840, less if file missing lines
 exo.threshold <- 5  # default 10, low exo need around 5
 
-remove1  <- FALSE
-remove2  <- FALSE
-remove3  <- FALSE  # set to TRUE if removal desired
-autosave <- FALSE  # automatically save as .png after running if TRUE
+remove1   <- FALSE
+remove2   <- FALSE
+remove3   <- FALSE  # set to TRUE if removal desired
+autosave  <- TRUE  # automatically save sample graphs
+autosave1 <- TRUE  # automatically save summary graphics
 
-overlay.list       <- list()  # setup lists for graphs, must be outside loop
-results.table.list <- list()  # setup lists for tables, must be outside loop
+overlay.list       <- list()  # list for graphs, must be outside loop
+results.table.list <- list()  # list for tables, must be outside loop
+compiled.results   <- list()  # list for summary of sample data
+compiled.results.all   <- list()  # list for summary of sample data
 
 for(i in 1:length(prefix.range)){
   prefix <- prefix.list[[i]]
@@ -58,13 +68,13 @@ for(i in 1:length(prefix.range)){
   file.names <- paste0(prefix, '-', seq_len(3), '.log')
   df.list <- lapply(file.names, 
                     function(x) read.csv(x, 
-                                         sep='\t', 
-                                         skip=skip.lines, 
-                                         nrows=read.rows))
+                                         sep = '\t', 
+                                         skip = skip.lines, 
+                                         nrows = read.rows))
   
   df.total <- do.call(cbind, df.list)  # merge all data
   
-  time      <- seq.int(0,419.5, 0.5)  # create time variable axis
+  time      <- seq.int(0, 419.5, 0.5)  # create time variable axis
   time.rows <- read.rows - 1  # match length(time) with imported data length
   time      <- time[0:time.rows]  # modify length(time)
   
@@ -84,9 +94,9 @@ for(i in 1:length(prefix.range)){
   # ===========================
   ign.names <- paste0("pyro", seq_len(3))  # for easier function calls
   
-  variables.df <- data.frame(pyro1=as.numeric(),
-                                 pyro2=as.numeric(),
-                                 pyro3=as.numeric())  # empty variables dataframe
+  variables.df <- data.frame(pyro1 = as.numeric(),
+                             pyro2 = as.numeric(),
+                             pyro3 = as.numeric())  # empty variables dataframe
   
   dropTime <- function(x){
     # Computes drop time  coordinates & average baseline temperature
@@ -98,7 +108,7 @@ for(i in 1:length(prefix.range)){
     # Returns: 
     #   list of values: drop time(x1), drop temp(y1), baseline(y-value)
     for (i in 1:length(x)){
-      if (abs(x[i] - x[i+1] > 5)){
+      if (abs(x[i] - x[i + 1] > 5)){
         drop.time <- time[i]
         drop.temp <- x[i]
         baseline <- mean(x[1:i])
@@ -629,21 +639,14 @@ for(i in 1:length(prefix.range)){
     dev.off()
   }
   
-  exportEPS <- function(){
-    file.name.eps <- paste0(prefix, ".eps")
-    dev.copy(eps, file = file.name.png,
-             width = 1200,
-             height = 900)
-    multiplot(p1, p2, p3, p4, p5, p6, cols=2)
-    dev.off()
-  }
-  
   if(autosave == TRUE) {
     exportPng()
   }
   
-  overlay.list[[i]]       <- p4  # stores individual p4 graphs to list
-  results.table.list[[i]] <- p5  # stores individual p5 charts to list
+  overlay.list[[i]]         <- p4  # stores individual p4 graphs to list
+  results.table.list[[i]]   <- p5  # stores individual p5 charts to list
+  compiled.results.all[[i]] <- calculations.table.total[1:3,]  # pyro1-3
+  compiled.results[[i]]     <- calculations.table.total[4:5,]  # mean & std.dev
 }
 
 # ======================
@@ -744,7 +747,6 @@ multiOverlay <- function(x, y = 2){
               cols = y)
   } 
 }
-
 multiTable <- function(x, y = 2){
   # Calls multiplot function for plotting results table from different samples
   # 
@@ -849,7 +851,6 @@ plotOverlays <- function(){
   #   
   multiOverlay(overlay.list)
 }
-
 plotTables <- function(){
   # Calls multiTable function
   #
@@ -858,5 +859,560 @@ plotTables <- function(){
   multiTable(results.table.list)  
 }
 
-plotOverlays()  # Plots individual sample graphs
-plotTables()    # Plots individual sample results tables
+# Below code is pretty crappy and needs revisited in the future.
+# only supports 10 total samples per run due to the if statements
+if(length(prefix.list) == 1){
+  #for boxplot
+  bplot.total <- cbind(compiled.results.all[1])
+  sample.name <- rbind(prefix.list[1], prefix.list[1], prefix.list[1])
+}
+if(length(prefix.list) == 2){
+    compiled.results.total <- cbind(compiled.results[1], 
+                                    compiled.results[2])
+    
+    compiled.results.total <- setNames(do.call(rbind.data.frame, 
+                                               compiled.results.total), 
+                                       dimnames(compiled.results.total)[[2]])
+    
+    colnames(compiled.results.total) <- c("ignite time", 
+                                          "delta temp", 
+                                          "exo duration")
+    
+    rownames(compiled.results.total) <- c(paste0(prefix.list[[1]], "-mean"),
+                                          paste0(prefix.list[[1]], "-stdev"),
+                                          paste0(prefix.list[[2]], "-mean"),
+                                          paste0(prefix.list[[2]], "-stdev"))
+    
+    #  For boxplot
+    bplot.total <- cbind(compiled.results.all[1],
+                         compiled.results.all[2])
+    sample.name <- rbind(prefix.list[1], prefix.list[1], prefix.list[1],
+                         prefix.list[2], prefix.list[2], prefix.list[2])
+  }
+if(length(prefix.list) == 3){
+    compiled.results.total <- cbind(compiled.results[1], 
+                                    compiled.results[2],
+                                    compiled.results[3])
+    
+    compiled.results.total <- setNames(do.call(rbind.data.frame, 
+                                               compiled.results.total), 
+                                       dimnames(compiled.results.total)[[2]])
+    
+    colnames(compiled.results.total) <- c("ignite time", 
+                                          "delta temp", 
+                                          "exo duration")
+    
+    rownames(compiled.results.total) <- c(paste0(prefix.list[[1]], "-mean"),
+                                          paste0(prefix.list[[1]], "-stdev"),
+                                          paste0(prefix.list[[2]], "-mean"),
+                                          paste0(prefix.list[[2]], "-stdev"),
+                                          paste0(prefix.list[[3]], "-mean"),
+                                          paste0(prefix.list[[3]], "-stdev"))
+    #  For boxplot
+    bplot.total <- cbind(compiled.results.all[1],
+                         compiled.results.all[2],
+                         compiled.results.all[3])
+    sample.name <- rbind(prefix.list[1], prefix.list[1], prefix.list[1],
+                         prefix.list[2], prefix.list[2], prefix.list[2],
+                         prefix.list[3], prefix.list[3], prefix.list[3])
+  }
+if(length(prefix.list) == 4){
+    compiled.results.total <- cbind(compiled.results[1], 
+                                    compiled.results[2],
+                                    compiled.results[3],
+                                    compiled.results[4])
+    
+    compiled.results.total <- setNames(do.call(rbind.data.frame, 
+                                               compiled.results.total), 
+                                       dimnames(compiled.results.total)[[2]])
+    
+    colnames(compiled.results.total) <- c("ignite time", 
+                                          "delta temp", 
+                                          "exo duration")
+    
+    rownames(compiled.results.total) <- c(paste0(prefix.list[[1]], "-mean"),
+                                          paste0(prefix.list[[1]], "-stdev"),
+                                          paste0(prefix.list[[2]], "-mean"),
+                                          paste0(prefix.list[[2]], "-stdev"),
+                                          paste0(prefix.list[[3]], "-mean"),
+                                          paste0(prefix.list[[3]], "-stdev"),
+                                          paste0(prefix.list[[4]], "-mean"),
+                                          paste0(prefix.list[[4]], "-stdev"))
+    # for boxplot
+    bplot.total <- cbind(compiled.results.all[1],
+                         compiled.results.all[2],
+                         compiled.results.all[3],
+                         compiled.results.all[4])
+    sample.name <- rbind(prefix.list[1], prefix.list[1], prefix.list[1],
+                         prefix.list[2], prefix.list[2], prefix.list[2],
+                         prefix.list[3], prefix.list[3], prefix.list[3],
+                         prefix.list[4], prefix.list[4], prefix.list[4])
+  }
+if(length(prefix.list) == 5){
+    compiled.results.total <- cbind(compiled.results[1], 
+                                    compiled.results[2],
+                                    compiled.results[3],
+                                    compiled.results[4],
+                                    compiled.results[5])
+    
+    compiled.results.total <- setNames(do.call(rbind.data.frame, 
+                                               compiled.results.total), 
+                                       dimnames(compiled.results.total)[[2]])
+    
+    colnames(compiled.results.total) <- c("ignite time", 
+                                          "delta temp", 
+                                          "exo duration")
+    
+    rownames(compiled.results.total) <- c(paste0(prefix.list[[1]], "-mean"),
+                                          paste0(prefix.list[[1]], "-stdev"),
+                                          paste0(prefix.list[[2]], "-mean"),
+                                          paste0(prefix.list[[2]], "-stdev"),
+                                          paste0(prefix.list[[3]], "-mean"),
+                                          paste0(prefix.list[[3]], "-stdev"),
+                                          paste0(prefix.list[[4]], "-mean"),
+                                          paste0(prefix.list[[4]], "-stdev"),
+                                          paste0(prefix.list[[5]], "-mean"),
+                                          paste0(prefix.list[[5]], "-stdev"))
+    #  for boxplot
+    bplot.total <- cbind(compiled.results.all[1],
+                         compiled.results.all[2],
+                         compiled.results.all[3],
+                         compiled.results.all[4],
+                         compiled.results.all[5])
+    sample.name <- rbind(prefix.list[1], prefix.list[1], prefix.list[1],
+                         prefix.list[2], prefix.list[2], prefix.list[2],
+                         prefix.list[3], prefix.list[3], prefix.list[3],
+                         prefix.list[4], prefix.list[4], prefix.list[4],
+                         prefix.list[5], prefix.list[5], prefix.list[5])
+}
+if(length(prefix.list) == 6){
+    compiled.results.total <- cbind(compiled.results[1], 
+                                    compiled.results[2],
+                                    compiled.results[3],
+                                    compiled.results[4],
+                                    compiled.results[5],
+                                    compiled.results[6])
+    
+    compiled.results.total <- setNames(do.call(rbind.data.frame, 
+                                               compiled.results.total),
+                                       dimnames(compiled.results.total)[[2]])
+    
+    colnames(compiled.results.total) <- c("ignite time", 
+                                          "delta temp", 
+                                          "exo duration")
+    
+    rownames(compiled.results.total) <- c(paste0(prefix.list[[1]], "-mean"),
+                                          paste0(prefix.list[[1]], "-stdev"),
+                                          paste0(prefix.list[[2]], "-mean"),
+                                          paste0(prefix.list[[2]], "-stdev"),
+                                          paste0(prefix.list[[3]], "-mean"),
+                                          paste0(prefix.list[[3]], "-stdev"),
+                                          paste0(prefix.list[[4]], "-mean"),
+                                          paste0(prefix.list[[4]], "-stdev"),
+                                          paste0(prefix.list[[5]], "-mean"),
+                                          paste0(prefix.list[[5]], "-stdev"),
+                                          paste0(prefix.list[[6]], "-mean"),
+                                          paste0(prefix.list[[6]], "-stdev"))
+    #  for boxplot
+    bplot.total <- cbind(compiled.results.all[1],
+                         compiled.results.all[2],
+                         compiled.results.all[3],
+                         compiled.results.all[4],
+                         compiled.results.all[5],
+                         compiled.results.all[6]
+    )
+    sample.name <- rbind(prefix.list[1], prefix.list[1], prefix.list[1],
+                         prefix.list[2], prefix.list[2], prefix.list[2],
+                         prefix.list[3], prefix.list[3], prefix.list[3],
+                         prefix.list[4], prefix.list[4], prefix.list[4],
+                         prefix.list[5], prefix.list[5], prefix.list[5],
+                         prefix.list[6], prefix.list[6], prefix.list[6])
+  }
+if(length(prefix.list) == 7){
+    compile
+    d.results.total <- cbind(compiled.results[1], 
+                                    compiled.results[2],
+                                    compiled.results[3],
+                                    compiled.results[4],
+                                    compiled.results[5],
+                                    compiled.results[6],
+                                    compiled.results[7])
+    
+    compiled.results.total <- setNames(do.call(rbind.data.frame, 
+                                               compiled.results.total), 
+                                       dimnames(compiled.results.total)[[2]])
+    
+    colnames(compiled.results.total) <- c("ignite time", 
+                                          "delta temp", 
+                                          "exo duration")
+    
+    rownames(compiled.results.total) <- c(paste0(prefix.list[[1]], "-mean"),
+                                          paste0(prefix.list[[1]], "-stdev"),
+                                          paste0(prefix.list[[2]], "-mean"),
+                                          paste0(prefix.list[[2]], "-stdev"),
+                                          paste0(prefix.list[[3]], "-mean"),
+                                          paste0(prefix.list[[3]], "-stdev"),
+                                          paste0(prefix.list[[4]], "-mean"),
+                                          paste0(prefix.list[[4]], "-stdev"),
+                                          paste0(prefix.list[[5]], "-mean"),
+                                          paste0(prefix.list[[5]], "-stdev"),
+                                          paste0(prefix.list[[6]], "-mean"),
+                                          paste0(prefix.list[[6]], "-stdev"),
+                                          paste0(prefix.list[[7]], "-mean"),
+                                          paste0(prefix.list[[7]], "-stdev"))
+    bplot.total <- cbind(compiled.results.all[1],
+                         compiled.results.all[2],
+                         compiled.results.all[3],
+                         compiled.results.all[4],
+                         compiled.results.all[5],
+                         compiled.results.all[6],
+                         compiled.results.all[7])
+    
+    sample.name <- rbind(prefix.list[1], prefix.list[1], prefix.list[1],
+                         prefix.list[2], prefix.list[2], prefix.list[2],
+                         prefix.list[3], prefix.list[3], prefix.list[3],
+                         prefix.list[4], prefix.list[4], prefix.list[4],
+                         prefix.list[5], prefix.list[5], prefix.list[5],
+                         prefix.list[6], prefix.list[6], prefix.list[6],
+                         prefix.list[7], prefix.list[7], prefix.list[7])
+  }
+if(length(prefix.list) == 8){
+    compiled.results.total <- cbind(compiled.results[1], 
+                                    compiled.results[2],
+                                    compiled.results[3],
+                                    compiled.results[4],
+                                    compiled.results[5],
+                                    compiled.results[6],
+                                    compiled.results[7],
+                                    compiled.results[8])
+    
+    compiled.results.total <- setNames(do.call(rbind.data.frame, 
+                                               compiled.results.total), 
+                                       dimnames(compiled.results.total)[[2]])
+    
+    colnames(compiled.results.total) <- c("ignite time", 
+                                          "delta temp", 
+                                          "exo duration")
+    
+    rownames(compiled.results.total) <- c(paste0(prefix.list[[1]], "-mean"),
+                                          paste0(prefix.list[[1]], "-stdev"),
+                                          paste0(prefix.list[[2]], "-mean"),
+                                          paste0(prefix.list[[2]], "-stdev"),
+                                          paste0(prefix.list[[3]], "-mean"),
+                                          paste0(prefix.list[[3]], "-stdev"),
+                                          paste0(prefix.list[[4]], "-mean"),
+                                          paste0(prefix.list[[4]], "-stdev"),
+                                          paste0(prefix.list[[5]], "-mean"),
+                                          paste0(prefix.list[[5]], "-stdev"),
+                                          paste0(prefix.list[[6]], "-mean"),
+                                          paste0(prefix.list[[6]], "-stdev"),
+                                          paste0(prefix.list[[7]], "-mean"),
+                                          paste0(prefix.list[[7]], "-stdev"),
+                                          paste0(prefix.list[[8]], "-mean"),
+                                          paste0(prefix.list[[8]], "-stdev"))
+    #  for boxplot
+    bplot.total <- cbind(compiled.results.all[1],
+                         compiled.results.all[2],
+                         compiled.results.all[3],
+                         compiled.results.all[4],
+                         compiled.results.all[5],
+                         compiled.results.all[6],
+                         compiled.results.all[7],
+                         compiled.results.all[8])
+    
+    sample.name <- rbind(prefix.list[1], prefix.list[1], prefix.list[1],
+                         prefix.list[2], prefix.list[2], prefix.list[2],
+                         prefix.list[3], prefix.list[3], prefix.list[3],
+                         prefix.list[4], prefix.list[4], prefix.list[4],
+                         prefix.list[5], prefix.list[5], prefix.list[5],
+                         prefix.list[6], prefix.list[6], prefix.list[6],
+                         prefix.list[7], prefix.list[7], prefix.list[7],
+                         prefix.list[8], prefix.list[8], prefix.list[8])
+  }
+if(length(prefix.list) == 9){
+    compiled.results.total <- cbind(compiled.results[1], 
+                                    compiled.results[2],
+                                    compiled.results[3],
+                                    compiled.results[4],
+                                    compiled.results[5],
+                                    compiled.results[6],
+                                    compiled.results[7],
+                                    compiled.results[8],
+                                    compiled.results[9])
+    
+    compiled.results.total <- setNames(do.call(rbind.data.frame, 
+                                               compiled.results.total), 
+                                       dimnames(compiled.results.total)[[2]])
+    
+    colnames(compiled.results.total) <- c("ignite time", 
+                                          "delta temp", 
+                                          "exo duration")
+    
+    rownames(compiled.results.total) <- c(paste0(prefix.list[[1]], "-mean"),
+                                          paste0(prefix.list[[1]], "-stdev"),
+                                          paste0(prefix.list[[2]], "-mean"),
+                                          paste0(prefix.list[[2]], "-stdev"),
+                                          paste0(prefix.list[[3]], "-mean"),
+                                          paste0(prefix.list[[3]], "-stdev"),
+                                          paste0(prefix.list[[4]], "-mean"),
+                                          paste0(prefix.list[[4]], "-stdev"),
+                                          paste0(prefix.list[[5]], "-mean"),
+                                          paste0(prefix.list[[5]], "-stdev"),
+                                          paste0(prefix.list[[6]], "-mean"),
+                                  
+                                          paste0(prefix.list[[6]], "-stdev"),
+                                          paste0(prefix.list[[7]], "-mean"),
+                                          paste0(prefix.list[[7]], "-stdev"),
+                                          paste0(prefix.list[[8]], "-mean"),
+                                          paste0(prefix.list[[8]], "-stdev"),
+                                          paste0(prefix.list[[9]], "-mean"),
+                                          paste0(prefix.list[[9]], "-stdev"))
+    #  for boxplot
+    bplot.total <- cbind(compiled.results.all[1],
+                         compiled.results.all[2],
+                         compiled.results.all[3],
+                         compiled.results.all[4],
+                         compiled.results.all[5],
+                         compiled.results.all[6],
+                         compiled.results.all[7],
+                         compiled.results.all[8])
+    
+    sample.name <- rbind(prefix.list[1], prefix.list[1], prefix.list[1],
+                         prefix.list[2], prefix.list[2], prefix.list[2],
+                         prefix.list[3], prefix.list[3], prefix.list[3],
+                         prefix.list[4], prefix.list[4], prefix.list[4],
+                         prefix.list[5], prefix.list[5], prefix.list[5],
+                         prefix.list[6], prefix.list[6], prefix.list[6],
+                         prefix.list[7], prefix.list[7], prefix.list[7],
+                         prefix.list[8], prefix.list[8], prefix.list[8])
+  }
+if(length(prefix.list) == 10){
+    compiled.results.total <- cbind(compiled.results[1], 
+                                    compiled.results[2],
+                                    compiled.results[3],
+                                    compiled.results[4],
+                                    compiled.results[5],
+                                    compiled.results[6],
+                                    compiled.results[7],
+                                    compiled.results[8],
+                                    compiled.results[9],
+                                    compiled.results[10])
+    
+    compiled.results.total <- setNames(do.call(rbind.data.frame, 
+                                               compiled.results.total), 
+                                       dimnames(compiled.results.total)[[2]])
+    
+    colnames(compiled.results.total) <- c("ignite time", 
+                                          "delta temp", 
+                                          "exo duration")
+    
+    rownames(compiled.results.total) <- c(paste0(prefix.list[[1]], "-mean"),
+                                          paste0(prefix.list[[1]], "-stdev"),
+                                          paste0(prefix.list[[2]], "-mean"),
+                                          paste0(prefix.list[[2]], "-stdev"),
+                                          paste0(prefix.list[[3]], "-mean"),
+                                          paste0(prefix.list[[3]], "-stdev"),
+                                          paste0(prefix.list[[4]], "-mean"),
+                                          paste0(prefix.list[[4]], "-stdev"),
+                                          paste0(prefix.list[[5]], "-mean"),
+                                          paste0(prefix.list[[5]], "-stdev"),
+                                          paste0(prefix.list[[6]], "-mean"),
+                                          paste0(prefix.list[[6]], "-stdev"),
+                                          paste0(prefix.list[[7]], "-mean"),
+                                          paste0(prefix.list[[7]], "-stdev"),
+                                          paste0(prefix.list[[8]], "-mean"),
+                                          paste0(prefix.list[[8]], "-stdev"),
+                                          paste0(prefix.list[[9]], "-mean"),
+                                          paste0(prefix.list[[9]], "-stdev"),
+                                          paste0(prefix.list[[10]], "-mean"),
+                                          paste0(prefix.list[[10]], "-stdev"))
+    #  for boxplot
+    bplot.total <- cbind(compiled.results.all[1],
+                         compiled.results.all[2],
+                         compiled.results.all[3],
+                         compiled.results.all[4],
+                         compiled.results.all[5],
+                         compiled.results.all[6],
+                         compiled.results.all[7],
+                         compiled.results.all[8],
+                         compiled.results.all[9],
+                         compiled.results.all[10]
+    )
+    sample.name <- rbind(prefix.list[1], prefix.list[1], prefix.list[1],
+                         prefix.list[2], prefix.list[2], prefix.list[2],
+                         prefix.list[3], prefix.list[3], prefix.list[3],
+                         prefix.list[4], prefix.list[4], prefix.list[4],
+                         prefix.list[5], prefix.list[5], prefix.list[5],
+                         prefix.list[6], prefix.list[6], prefix.list[6],
+                         prefix.list[7], prefix.list[7], prefix.list[7],
+                         prefix.list[8], prefix.list[8], prefix.list[8],
+                         prefix.list[9], prefix.list[9], prefix.list[9],
+                         prefix.list[10], prefix.list[10], prefix.list[10])
+  }
+
+plotCompiledResults <- function(){
+  # Prints compiled results in a table for biewing
+  # 
+  # Args:
+  #   
+  # Returns: tableGrob of means/std.devs of all sample results
+  #   
+  qplot(1:10, 1:10, geom = "blank", main = "All samples") + 
+    theme_bw() + 
+    theme(panel.grid.major = element_line(color = "white")) + 
+    scale_x_discrete("",breaks = NULL) +
+    scale_y_discrete("",breaks = NULL) +
+    annotation_custom(grob = tableGrob(compiled.results.total,
+                                       gpar.corefill = gpar(fill = color.list[[11]],
+                                                            alpha=0.5, 
+                                                            col = NA),
+                                       h.even.alpha = 0.5))
+}
+
+plotBoxplots <- function(){
+  # Formats data & creates individual boxplots, then calls multiplot()
+  # 
+  # Args:
+  #   
+  # Returns: boxplots of important data for comparison
+  #   
+  bplot.data <- setNames(do.call(rbind.data.frame, bplot.total), 
+                         dimnames(bplot.total)[[2]])
+  
+  colnames(bplot.data) <- c("ignite.time",
+                            "delta.temp", 
+                            "exo.duration")
+  bplot <- cbind(bplot.data, sample.name)
+  bplot.melt <- melt(bplot, id = c("sample.name",
+                                   "exo.duration",
+                                   "delta.temp",
+                                   "ignite.time"))
+  
+  g1 <- ggplot(data = bplot.melt, aes(x = sample.name,
+                                      y = ignite.time, 
+                                      fill = sample.name)) + 
+    geom_boxplot() + 
+    ggtitle("Ignite time") + 
+    ylab("seconds") +
+    guides(fill = FALSE) + 
+    stat_summary(fun.y = mean, geom = "point", shape = 5, size = 4) + 
+    geom_jitter(position = position_jitter(width = .2)) +
+    theme(panel.background = element_rect(fill  = color.list[[7]],
+                                          color = color.list[[8]]),
+          panel.grid.major = element_line(color = color.list[[9]],
+                                          size  = size.list[[4]]),
+          panel.grid.minor = element_line(color = color.list[[10]], 
+                                          size  = size.list[[5]]),
+          panel.grid.major.y = element_line(color = color.list[[9]],
+                                            size  = size.list[[4]]),
+          panel.grid.minor.y = element_line(color = color.list[[10]],
+                                            size  = size.list[[5]]),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(vjust = xy.scale.list[[8]]),
+          axis.text.x = element_text(angle = 25, hjust = 1),
+          text = element_text(size = 15))
+  
+  g2 <- ggplot(data = bplot.melt, aes(x = sample.name,
+                                      y = delta.temp, 
+                                      fill = sample.name)) + 
+    geom_boxplot() + 
+    ggtitle("Delta temp") + 
+    ylab("°C") +    
+    guides(fill = FALSE) + 
+    stat_summary(fun.y = mean, geom = "point", shape = 5, size = 4) + 
+    geom_jitter(position = position_jitter(width = .2)) +
+    theme(panel.background = element_rect(fill  = color.list[[7]],
+                                          color = color.list[[8]]),
+          panel.grid.major = element_line(color = color.list[[9]],
+                                          size  = size.list[[4]]),
+          panel.grid.minor = element_line(color = color.list[[10]], 
+                                          size  = size.list[[5]]),
+          panel.grid.major.y = element_line(color = color.list[[9]],
+                                            size  = size.list[[4]]),
+          panel.grid.minor.y = element_line(color = color.list[[10]],
+                                            size  = size.list[[5]]),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(vjust = xy.scale.list[[8]]),
+          axis.text.x = element_text(angle = 25, hjust = 1),
+          text = element_text(size = 15))
+  
+  g3 <- ggplot(data = bplot.melt, aes(x = sample.name,
+                                      y = exo.duration, 
+                                      fill = sample.name)) + 
+    geom_boxplot() + 
+    ggtitle("Exotherm duration") + 
+    ylab("seconds") +  
+    guides(fill = FALSE) + 
+    stat_summary(fun.y = mean, geom = "point", shape = 5, size = 4) + 
+    geom_jitter(position = position_jitter(width = .2)) +
+    theme(panel.background = element_rect(fill  = color.list[[7]],
+                                          color = color.list[[8]]),
+          panel.grid.major = element_line(color = color.list[[9]],
+                                          size  = size.list[[4]]),
+          panel.grid.minor = element_line(color = color.list[[10]], 
+                                          size  = size.list[[5]]),
+          panel.grid.major.y = element_line(color = color.list[[9]],
+                                            size  = size.list[[4]]),
+          panel.grid.minor.y = element_line(color = color.list[[10]],
+                                            size  = size.list[[5]]),
+          axis.title.x = element_blank(),
+          axis.title.y = element_text(vjust = xy.scale.list[[8]]),
+          axis.text.x = element_text(angle = 25, hjust = 1),
+          text = element_text(size = 15))
+  
+  multiplot(g1,g2,g3, cols=3)
+}
+
+plotOverlays()  
+  # Plots individual sample graphs
+  # useful for comparing deviations between all samples tested
+plotTables()    
+  # Prints results tables from all samples
+  # useful if need to copy all datapoints
+plotCompiledResults()  
+  # Plots means/stdevs for all samples
+  # useful table summary when individual datapoints are less
+  # important than mean & std.dev
+plotBoxplots()
+  # Plots boxplots comparing samples & variables
+  # useful as quick summation of data and pattern comparison between samples
+
+exportPngSummary <- function(){
+  # Export all summary style graphics
+  # 
+  # Args:
+  #   
+  # Returns: individual .png files comparing all samples & data
+  #
+  file.name.png <- paste0(pre.prefix, "-Overlays.png")
+  dev.copy(png, file = file.name.png,
+           width = 1200,
+           height = 900)
+  plotOverlays()  
+  dev.off()
+  
+  file.name.png <- paste0(pre.prefix, "-Tables.png")
+  dev.copy(png, file = file.name.png,
+           width = 1200,
+           height = 900)
+  plotTables()    
+  dev.off()
+  
+  file.name.png <- paste0(pre.prefix, "-SummaryTable.png")
+  dev.copy(png, file = file.name.png,
+           width = 500,
+           height = 500)
+  plotCompiledResults()  
+  dev.off()
+  
+  file.name.png <- paste0(pre.prefix, "-Boxplots.png")
+  dev.copy(png, file = file.name.png,
+           width = 1600,
+           height = 800)
+  plotBoxplots()
+  dev.off()
+}
+
+if(autosave1 == TRUE){
+  exportPngSummary()
+}
