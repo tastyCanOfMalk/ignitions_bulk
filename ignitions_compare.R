@@ -29,14 +29,15 @@ if (require("reshape") == FALSE) install.packages("reshape")
 #   plotBoxplots()  # easy comparison of variables between all samples
 
 #   exportPngSummary()  # exports all multisample graphs
+# TO DO LIST
 
 # ======================
 # OPTIONS
 # ==========================
 
 setwd("C://Users//yue.GLOBAL//Documents//R//ignition")
-prefix.range <- c('C', 'D', 'E', 'F', 'G', 'H')
-pre.prefix <- "2014-10-28,157"
+prefix.range <- c('A', 'C', 'D', 'E', 'F')
+pre.prefix <- "2015-01-27,8"
 prefix.list  <- paste0(pre.prefix, 
                        prefix.range[1:length(prefix.range)])
 
@@ -51,7 +52,7 @@ exo.threshold <- 5  # default 10, low exo need around 5
 remove1   <- FALSE
 remove2   <- FALSE
 remove3   <- FALSE  # set to TRUE if removal desired
-autosave  <- TRUE  # automatically save sample graphs
+autosave  <- FALSE  # automatically save sample graphs
 autosave1 <- TRUE  # automatically save summary graphics
 
 overlay.list       <- list()  # list for graphs, must be outside loop
@@ -1257,7 +1258,7 @@ plotCompiledResults <- function(){
   #   
   # Returns: tableGrob of means/std.devs of all sample results
   #   
-  qplot(1:10, 1:10, geom = "blank", main = "All samples") + 
+  r1 <- qplot(1:10, 1:10, geom = "blank", main = "All samples") + 
     theme_bw() + 
     theme(panel.grid.major = element_line(color = "white")) + 
     scale_x_discrete("",breaks = NULL) +
@@ -1267,6 +1268,7 @@ plotCompiledResults <- function(){
                                                             alpha=0.5, 
                                                             col = NA),
                                        h.even.alpha = 0.5))
+  multiplot(r1)
 }
 
 plotBoxplots <- function(){
@@ -1309,7 +1311,7 @@ plotBoxplots <- function(){
                                             size  = size.list[[5]]),
           axis.title.x = element_blank(),
           axis.title.y = element_text(vjust = xy.scale.list[[8]]),
-          axis.text.x = element_text(angle = 25, hjust = 1),
+          axis.text.x = element_text(angle = 15, hjust = 1),
           text = element_text(size = 15))
   
   g2 <- ggplot(data = bplot.melt, aes(x = sample.name,
@@ -1333,7 +1335,7 @@ plotBoxplots <- function(){
                                             size  = size.list[[5]]),
           axis.title.x = element_blank(),
           axis.title.y = element_text(vjust = xy.scale.list[[8]]),
-          axis.text.x = element_text(angle = 25, hjust = 1),
+          axis.text.x = element_text(angle = 15, hjust = 1),
           text = element_text(size = 15))
   
   g3 <- ggplot(data = bplot.melt, aes(x = sample.name,
@@ -1357,7 +1359,7 @@ plotBoxplots <- function(){
                                             size  = size.list[[5]]),
           axis.title.x = element_blank(),
           axis.title.y = element_text(vjust = xy.scale.list[[8]]),
-          axis.text.x = element_text(angle = 25, hjust = 1),
+          axis.text.x = element_text(angle = 15, hjust = 1),
           text = element_text(size = 15))
   
   multiplot(g1,g2,g3, cols=3)
@@ -1398,21 +1400,28 @@ exportPngSummary <- function(){
   plotTables()    
   dev.off()
   
-  file.name.png <- paste0(pre.prefix, "-SummaryTable.png")
-  dev.copy(png, file = file.name.png,
-           width = 500,
-           height = 500)
-  plotCompiledResults()  
-  dev.off()
-  
   file.name.png <- paste0(pre.prefix, "-Boxplots.png")
   dev.copy(png, file = file.name.png,
-           width = 1600,
+           width = 1400,
            height = 800)
   plotBoxplots()
   dev.off()
+  
+  file.name.png <- paste0(pre.prefix, "-Results.png")
+  dev.copy(png, file = file.name.png,
+           width = 500,
+           height = 500)
+  plotCompiledResults() 
+  dev.off()
 }
+
 
 if(autosave1 == TRUE){
   exportPngSummary()
 }
+
+# ======================
+# TO DO LIST
+# ==========================
+#  Add PDF export functionality which exports all or most
+#  graphs to a multi page pdf
